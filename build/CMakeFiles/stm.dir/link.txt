@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/stm.dir/src/server.c.o CMakeFiles/stm.dir/src/client.c.o -o stm 
