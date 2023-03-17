@@ -16,7 +16,6 @@ int main(int argc, char const *argv[])
 	char buffer[BUFFER_SIZE] = { 0 };
 	char *message = "Hello from client";	
 	int socket_handler, valread, status;
-	int addrlen = sizeof(adress);
 
 	if (argc != 2){
 		printf("Usage: %s [server_ip]\n", argv[0]);

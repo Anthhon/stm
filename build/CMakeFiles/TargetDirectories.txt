@@ -1,7 +1,0 @@
-/home/anthony/Github/own-projects/stm/build/CMakeFiles/stm.dir
-/home/anthony/Github/own-projects/stm/build/CMakeFiles/edit_cache.dir
-/home/anthony/Github/own-projects/stm/build/CMakeFiles/rebuild_cache.dir
-/home/anthony/Github/own-projects/stm/build/CMakeFiles/list_install_components.dir
-/home/anthony/Github/own-projects/stm/build/CMakeFiles/install.dir
-/home/anthony/Github/own-projects/stm/build/CMakeFiles/install/local.dir
-/home/anthony/Github/own-projects/stm/build/CMakeFiles/install/strip.dir
