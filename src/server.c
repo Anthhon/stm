@@ -7,22 +7,31 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#define INIT_GREEN "\033[0;31m"
+#define END_COLOR "\033[0m"
+
 #define PORT 8080
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 4096
+#define TERMINATOR 1
 
 int main(int agrc, char const *argv[])
 {
-	struct sockaddr_in adress;
+	struct sockaddr_in address;
 	char buffer[BUFFER_SIZE] = { 0 };
-	char *message = "Hello from server!\n";
-	int socket_handler, new_socket, valread;
-	int addrlen = sizeof(adress);
+	char server_name[] = "SERVER";	
+	char message[] = "Sending testing message";
+	int socket_handler, new_socket, read_status;
+	int addrlen = sizeof(address);
 	int backlog_len = 3;
 	int opt = 1;
 
+	/* Assign server name to message */
+	char *f_message = malloc(sizeof(*f_message) * (strlen(server_name) + strlen(message) + TERMINATOR));
+	(void)sprintf(f_message, "%s: %s", server_name, message); 
+
 	/* Creating socket descriptor */
 	if ((socket_handler = socket(AF_INET, SOCK_STREAM, 0)) == -1){
-		perror("[SOCKET HANDLER] ");
+		(void)fprintf(stderr, "ERROR: socket creation failed");
 		exit(EXIT_FAILURE);
 	}
 
@@ -30,39 +39,41 @@ int main(int agrc, char const *argv[])
 	if (setsockopt(socket_handler, SOL_SOCKET,
 		       SO_REUSEADDR | SO_REUSEPORT,
 		       &opt, sizeof(opt))){
-		perror("[SETSOCKOPT] ");
+		(void)fprintf(stderr, "ERROR: socket operations setting failed");
 		exit(EXIT_FAILURE);
 	}
-	adress.sin_family = AF_INET;
-	adress.sin_addr.s_addr = INADDR_ANY;
-	adress.sin_port = htons(PORT);
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = INADDR_ANY;
+	address.sin_port = htons(PORT);
 
 	/* Attach socket to port 8080 */
-	if (bind(socket_handler, (struct sockaddr*)&adress, sizeof(adress)) == -1){
-		perror("[BIND FAILED] ");
+	if (bind(socket_handler, (struct sockaddr*)&address, sizeof(address)) == -1){
+		(void)fprintf(stderr, "ERROR: socket binding at %d failed", PORT);
 		exit(EXIT_FAILURE);
 	}
 	if (listen(socket_handler, backlog_len) == -1){
-		perror("[LISTEN FAILED] ");
+		(void)fprintf(stderr, "ERROR: socket listening failed");
 		exit(EXIT_FAILURE);
 	}
 	if ((new_socket = accept(socket_handler,
-			  (struct sockaddr*)&adress,
+			  (struct sockaddr*)&address,
 			  (socklen_t*)&addrlen)) == -1){
-		perror("[ACCEPT FAILED] ");
+		(void)fprintf(stderr, "ERROR: failed to accept new socket");
 		exit(EXIT_FAILURE);
 	}
 
 	/* Read socket handler */
-	valread = read(new_socket, buffer, BUFFER_SIZE);
-	printf("%s\n", buffer);
-	send(new_socket, message, strlen(message), 0);
-	printf("Hello message sent\n");
+	if ((read_status = read(new_socket, buffer, BUFFER_SIZE)) == -1){
+		(void)fprintf(stderr, "ERROR: message reading failed");
+		exit(EXIT_FAILURE);
+	}
+	(void)fprintf(stdout, "%s\n", buffer);
+	(void)send(new_socket, f_message, strlen(f_message), 0);
 
 	/* Ending the connected socket */
-	close(new_socket);
+	(void)close(new_socket);
 	/* Ending the listening socket */
-	shutdown(socket_handler, SHUT_RDWR);
+	(void)shutdown(socket_handler, SHUT_RDWR);
 
 	return 0;
 }
