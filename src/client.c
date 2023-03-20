@@ -18,24 +18,24 @@
 #define FALSE 0
 
 void chat_start(int cli_socket){
-	char buffer[MAX_MESSAGE_SIZE];
-	size_t buffer_t = sizeof(buffer);
+	char msg_buffer[MAX_MESSAGE_SIZE];
+	size_t byte_size = sizeof(msg_buffer);
 
 	while (TRUE){
 		/* Read client message, insert into buffer and sent it */
 		int i = 0;
 		(void)fprintf(stdout, "Type your message: ");
-		while ((buffer[i++] = getchar()) != '\n');
-		write(cli_socket, buffer, buffer_t);		
+		while ((msg_buffer[i++] = getchar()) != '\n');
+		write(cli_socket, msg_buffer, byte_size);		
+		(void)memset(msg_buffer, 0, byte_size);
 
 		/* Read and print-out receive message */
-		(void)memset(buffer, 0, buffer_t);
-		(void)read(cli_socket, buffer, buffer_t);
-		(void)fprintf(stdout, "From server: %s", buffer);
-		(void)memset(buffer, 0, buffer_t);
+		(void)read(cli_socket, msg_buffer, byte_size);
+		(void)fprintf(stdout, "From server: %s", msg_buffer);
+		(void)memset(msg_buffer, 0, byte_size);
 
 		/* Check if msg contains "Exit" then quit server */
-		if (strcmp("Exit", buffer) == 0){
+		if (strcmp("Exit", msg_buffer) == 0){
 			(void)fprintf(stdout, "Exiting server...");
 			break;
 		}
