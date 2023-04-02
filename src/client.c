@@ -13,12 +13,12 @@ int main(int argc, char const *argv[])
 	const char *USERNAME = argv[2];
 
 	fprintf(stdout, "Connecting %s to the server...\n", USERNAME);
-	int cli_socket = client_connect(IP);
+	client_connect(IP);
 	fprintf(stdout, "Starting chat as %s...\n", USERNAME);
-	client_chat_start(cli_socket);
+	chat_start();
 
 	/* Closing the connected socket */
-	close(cli_socket);
+	close(socket_connected);
 #ifdef _WIN32
 	WSACleanup();
 #endif

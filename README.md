@@ -23,8 +23,8 @@ Not possible yet.
 ### Design the architecture of the application
 
 OK - Implement a prototype of a TCP chat
-- Implement multithreading to simultaneous conversation
-- Search and understand more about the XMPP and it's library 
+OK - Implement multithreading to simultaneous conversation
+INCOMIGN - Search and understand more about the XMPP and it's library 
 - Determine how the client will connect to the XMPP server
 - Plan how messages will be encrypted and decrypted using SSL/TLS
 - Decide how to store user credentials securely

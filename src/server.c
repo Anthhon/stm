@@ -5,12 +5,12 @@
 int main(void)
 {
 	fprintf(stdout, "Starting server...\n");
-	int server_socket = server_start(); 
+	server_start(); 
 	fprintf(stdout, "Waiting for messages...\n");
-	server_chat_start(server_socket);
+	chat_start();
 
 	/* Closing the connected socket */
-	close(server_socket);
+	close(socket_connected);
 #ifdef _WIN32
 	WSACleanup();
 #endif
