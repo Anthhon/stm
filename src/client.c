@@ -1,4 +1,4 @@
-/* This file should only deal with app flow control in client-side */
+/* This file should only deal with control flow in client-side */
 
 #include "common.c"
 
