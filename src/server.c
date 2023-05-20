@@ -4,6 +4,10 @@
 
 int main(void)
 {
+	// Define username
+	const char USERNAME[] = "Admin";
+	strncpy(user_info.username, USERNAME, strlen(USERNAME));
+
 	fprintf(stdout, "Starting server...\n");
 	server_start(); 
 	fprintf(stdout, "Waiting for messages...\n");
@@ -14,5 +18,6 @@ int main(void)
 #ifdef _WIN32
 	WSACleanup();
 #endif
+
 	return 0;
 }

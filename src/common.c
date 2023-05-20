@@ -6,36 +6,70 @@
 #include <netinet/in.h>
 #include <sys/types.h>
 #endif
+
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
+
 
 // https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c
 #define ANSI_COLOR_GREEN   "\e[32m"
 #define ANSI_COLOR_YELLOW  "\e[33m"
 #define ANSI_COLOR_RESET   "\e[0m"
 
-#define BUFFER_SIZE      4096
-#define MAX_MESSAGE_SIZE 256
 #define TERMINATOR       1
 #define TRUE             1
 #define FALSE            0
 
+// This info is related with message format
+// +----------------------------------------+
+// |             Date (16 bytes)            |
+// +----------------------------------------+
+// |            Padding (4 bytes)           |
+// +----------------------------------------+
+// |            Sender (32 bytes)           |
+// +----------------------------------------+
+// |            Padding (4 bytes)           |
+// +----------------------------------------+
+// |                                        |
+// |                                        |
+// |           Message (964 bytes)          |
+// |                                        |
+// |                                        |
+// +----------------------------------------+
+// |            Padding (4 bytes)           |
+// +----------------------------------------+
+#define BUFFER_SIZE 1024 
+#define METADATA_MESSAGE_SIZE 964 
+#define METADATA_USERNAME_SIZE 32 
+#define METADATA_DATE_SIZE 16
+#define METADATA_PADDING_SIZE 16
+#define PADDING "\0\0\0\0"
+
+#define DATE_POS 0 
+#define USERNAME_POS 20 
+#define MESSAGE_POS 56
+
+
 pthread_mutex_t output_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-char *msg_buffer_ptr = NULL;
+typedef struct userInfo{
+	char username[METADATA_USERNAME_SIZE];
+} userInfo;
+userInfo user_info;
 
-static volatile int flag_msg_received = TRUE;
-const int PORT = 25565;
+const int PORT = 2469;
 int socket_connected = FALSE;
 int socket_fd = 0;
 
+
 void fatal(char *message)
 {
-		fprintf(stderr, "%s\n", message);
-		exit(EXIT_FAILURE);
+	fprintf(stderr, "%s\n", message);
+	exit(EXIT_FAILURE);
 }
 
 #ifdef _WIN32
@@ -47,56 +81,76 @@ void initialize_winsocs()
 }
 #endif
 
+void build_complete_msg(char *dest, char *username, char *message){
+	// Get message date
+	time_t currentTime;
+	struct tm* localTime;
+	char date[METADATA_DATE_SIZE] = {0};
+	currentTime = time(NULL);
+	localTime = localtime(&currentTime);
+	strftime(date, sizeof(date), "%m-%d %H:%M", localTime);
+
+	// Build message
+	strncpy(&dest[DATE_POS], date, strlen(date));
+	strncpy(&dest[USERNAME_POS], username, strlen(username));
+	strncpy(&dest[MESSAGE_POS], message, strlen(message));
+}
+
 void chat_read(void)
 {
-	char msg_received[MAX_MESSAGE_SIZE] = {0};
+	char msg_received[METADATA_MESSAGE_SIZE] = {0};
 
 	// Read and print-out received message
 	while(socket_connected){
 		int valread = 0;
-		if ((valread = read(socket_fd, msg_received, MAX_MESSAGE_SIZE)) == -1)
+		if ((valread = read(socket_fd, msg_received, METADATA_MESSAGE_SIZE)) == -1)
 			fatal("Failed to read content from socket buffer");
 
-		if (valread > 0){ // Check if any text was read from socket
+		// Check if any text was read from socket
+		if (valread){
+
 			pthread_mutex_lock(&output_mutex);
 			printf("\r"); // Clear current line
-			fprintf(stdout, "%sCLIENT:%s %s", ANSI_COLOR_GREEN, ANSI_COLOR_RESET, msg_received);
-
+			fprintf(stdout, "[%s] %s%s:%s %s", &msg_received[DATE_POS], ANSI_COLOR_GREEN, &msg_received[USERNAME_POS], ANSI_COLOR_RESET, &msg_received[MESSAGE_POS]);
+			
 			// Reproduce the line user input line
-			fprintf(stdout, "%sYOU:%s ", ANSI_COLOR_YELLOW, ANSI_COLOR_RESET);
+			fprintf(stdout, "%s%s:%s ", ANSI_COLOR_YELLOW, user_info.username, ANSI_COLOR_RESET);
 			fflush(stdout);
 			pthread_mutex_unlock(&output_mutex);
 
-			memset(msg_received, 0, MAX_MESSAGE_SIZE);
-			flag_msg_received = TRUE;
+			memset(msg_received, 0, METADATA_MESSAGE_SIZE);
 		}
 	}
 }
 
+// TODO: Solve 
 void chat_write(void)
 {
-	char msg_buffer[MAX_MESSAGE_SIZE] = {0};
-	msg_buffer_ptr = msg_buffer;
+	char plain_msg_buffer[METADATA_MESSAGE_SIZE] = {0};
+	char complete_msg_buffer[BUFFER_SIZE] = {0};
 
 	// Read server message, insert into buffer and sent it 
 	while(socket_connected){
 		pthread_mutex_lock(&output_mutex);
-		fprintf(stdout, "%sYOU:%s ", ANSI_COLOR_YELLOW, ANSI_COLOR_RESET);
+		fprintf(stdout, "%s%s:%s ", ANSI_COLOR_YELLOW, user_info.username, ANSI_COLOR_RESET);
 		fflush(stdout);
 		pthread_mutex_unlock(&output_mutex);
 
-		if (fgets(msg_buffer, MAX_MESSAGE_SIZE, stdin) == NULL){
+		if (fgets(plain_msg_buffer, METADATA_MESSAGE_SIZE, stdin) == NULL){
 			fatal("Wasn't possible to read user message");
 		};
-		write(socket_fd, msg_buffer, MAX_MESSAGE_SIZE);
 
 		// Check if msg contains "Exit" then quit server 
-		if (strncmp("Exit", msg_buffer, 4) == 0){
+		if (strncmp("Exit", plain_msg_buffer, 4) == 0){
 			fprintf(stdout, "Exiting server...\n");
 			socket_connected = FALSE;
 		}
 
-		memset(msg_buffer, 0, MAX_MESSAGE_SIZE);
+		build_complete_msg(complete_msg_buffer, user_info.username, plain_msg_buffer);
+		write(socket_fd, complete_msg_buffer, sizeof(complete_msg_buffer) - TERMINATOR);
+
+		memset(plain_msg_buffer, 0, sizeof(plain_msg_buffer));
+		memset(complete_msg_buffer, 0, sizeof(complete_msg_buffer));
 	}
 }
 
@@ -161,7 +215,7 @@ void server_start(void)
 	struct sockaddr_in address, cli;
 	const int SERVER_PROTOCOL = AF_INET;
 	const int CLI_LEN = sizeof(cli);
-	const int BACKLOG_LEN = 10;
+	const int BACKLOG_LEN = 32;
 	int socket_handler;
 
 	// Creating socket descriptor 
