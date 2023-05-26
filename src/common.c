@@ -61,7 +61,7 @@ typedef struct userInfo{
 } userInfo;
 userInfo user_info;
 
-const int PORT = 2469;
+const int PORT = 6969;
 int socket_connected = FALSE;
 int socket_fd = 0;
 
@@ -114,6 +114,7 @@ void chat_read(void)
 			fprintf(stdout, "[%s] %s%s:%s %s", &msg_received[DATE_POS], ANSI_COLOR_GREEN, &msg_received[USERNAME_POS], ANSI_COLOR_RESET, &msg_received[MESSAGE_POS]);
 			
 			// Reproduce the line user input line
+			printf("\r"); // Clear current line
 			fprintf(stdout, "%s%s:%s ", ANSI_COLOR_YELLOW, user_info.username, ANSI_COLOR_RESET);
 			fflush(stdout);
 			pthread_mutex_unlock(&output_mutex);
@@ -123,7 +124,6 @@ void chat_read(void)
 	}
 }
 
-// TODO: Solve 
 void chat_write(void)
 {
 	char plain_msg_buffer[METADATA_MESSAGE_SIZE] = {0};
