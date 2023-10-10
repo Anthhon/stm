@@ -1,50 +1,23 @@
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/types.h>
-#endif
+#include<arpa/inet.h>
+#include<stdbool.h>
+#include<netinet/in.h>
+#include<sys/types.h>
+#include<pthread.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<time.h>
+#include<unistd.h>
 
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
-
+#include"common.h"
 
 // https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c
 #define ANSI_COLOR_GREEN   "\e[32m"
 #define ANSI_COLOR_YELLOW  "\e[33m"
 #define ANSI_COLOR_RESET   "\e[0m"
 
-#define TERMINATOR       1
-#define TRUE             1
-#define FALSE            0
-
-// This info is related with message format
-// +----------------------------------------+
-// |             Date (16 bytes)            |
-// +----------------------------------------+
-// |            Padding (4 bytes)           |
-// +----------------------------------------+
-// |            Sender (32 bytes)           |
-// +----------------------------------------+
-// |            Padding (4 bytes)           |
-// +----------------------------------------+
-// |                                        |
-// |                                        |
-// |           Message (964 bytes)          |
-// |                                        |
-// |                                        |
-// +----------------------------------------+
-// |            Padding (4 bytes)           |
-// +----------------------------------------+
 #define BUFFER_SIZE 1024 
 #define METADATA_MESSAGE_SIZE 964 
-#define METADATA_USERNAME_SIZE 32 
 #define METADATA_DATE_SIZE 16
 #define METADATA_PADDING_SIZE 16
 #define PADDING "\0\0\0\0"
@@ -53,18 +26,17 @@
 #define USERNAME_POS 20 
 #define MESSAGE_POS 56
 
-
 pthread_mutex_t output_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-typedef struct userInfo{
-	char username[METADATA_USERNAME_SIZE];
-} userInfo;
-userInfo user_info;
+ServerMetadata serverData = {
+        .port = 6969
+};
+
+UserMetadata userData = {0};
 
 const int PORT = 6969;
-int socket_connected = FALSE;
+int socket_connected = false;
 int socket_fd = 0;
-
 
 void fatal(char *message)
 {
@@ -72,20 +44,14 @@ void fatal(char *message)
 	exit(EXIT_FAILURE);
 }
 
-#ifdef _WIN32
-void initialize_winsocs()
+void build_complete_msg(char *dest, char *username, char *message)
 {
-	WSADATA wsa_data;
-	if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
-		fatal("WSAStartup failed");
-}
-#endif
-
-void build_complete_msg(char *dest, char *username, char *message){
 	// Get message date
 	time_t currentTime;
 	struct tm* localTime;
 	char date[METADATA_DATE_SIZE] = {0};
+
+        // Get current time
 	currentTime = time(NULL);
 	localTime = localtime(&currentTime);
 	strftime(date, sizeof(date), "%m-%d %H:%M", localTime);
@@ -115,7 +81,7 @@ void chat_read(void)
 			
 			// Reproduce the line user input line
 			printf("\r"); // Clear current line
-			fprintf(stdout, "%s%s:%s ", ANSI_COLOR_YELLOW, user_info.username, ANSI_COLOR_RESET);
+			fprintf(stdout, "%s%s:%s ", ANSI_COLOR_YELLOW, userData.username, ANSI_COLOR_RESET);
 			fflush(stdout);
 			pthread_mutex_unlock(&output_mutex);
 
@@ -132,7 +98,7 @@ void chat_write(void)
 	// Read server message, insert into buffer and sent it 
 	while(socket_connected){
 		pthread_mutex_lock(&output_mutex);
-		fprintf(stdout, "%s%s:%s ", ANSI_COLOR_YELLOW, user_info.username, ANSI_COLOR_RESET);
+		fprintf(stdout, "%s%s:%s ", ANSI_COLOR_YELLOW, userData.username, ANSI_COLOR_RESET);
 		fflush(stdout);
 		pthread_mutex_unlock(&output_mutex);
 
@@ -143,10 +109,10 @@ void chat_write(void)
 		// Check if msg contains "Exit" then quit server 
 		if (strncmp("Exit", plain_msg_buffer, 4) == 0){
 			fprintf(stdout, "Exiting server...\n");
-			socket_connected = FALSE;
+			socket_connected = false;
 		}
 
-		build_complete_msg(complete_msg_buffer, user_info.username, plain_msg_buffer);
+		build_complete_msg(complete_msg_buffer, userData.username, plain_msg_buffer);
 		write(socket_fd, complete_msg_buffer, sizeof(complete_msg_buffer) - TERMINATOR);
 
 		memset(plain_msg_buffer, 0, sizeof(plain_msg_buffer));
@@ -206,7 +172,7 @@ void client_connect(const char *IP)
 	if (connect(socket_handler,(struct sockaddr*)&address, sizeof(address)) == -1)
 		fatal("socket connection failed");
 
-	socket_connected = TRUE;
+	socket_connected = true;
 	socket_fd = socket_handler; // Define socket as global-variable
 }
 
@@ -247,6 +213,6 @@ void server_start(void)
 	if ((socket_handler = accept(socket_handler,(struct sockaddr*)&cli,(socklen_t*)&CLI_LEN)) == -1){
 		fatal("failed to accept new client");
 	}
-	socket_connected = TRUE;
+	socket_connected = true;
 	socket_fd = socket_handler; // Define socket as global-variable
 }

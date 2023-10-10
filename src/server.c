@@ -6,7 +6,7 @@ int main(void)
 {
 	// Define username
 	const char USERNAME[] = "Admin";
-	strncpy(user_info.username, USERNAME, strlen(USERNAME));
+	strncpy(userData.username, USERNAME, strlen(USERNAME));
 
 	fprintf(stdout, "Starting server...\n");
 	server_start(); 

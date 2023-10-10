@@ -10,13 +10,13 @@ int main(int argc, char const *argv[])
 	}
 
 	const size_t username_len = strlen(argv[2]);
-	if (username_len >= METADATA_USERNAME_SIZE - TERMINATOR)
+	if (username_len >= MAX_USERNAME_SIZE - TERMINATOR)
 		fatal("Username is too long");
 
 	// Define username
 	const char *IP = argv[1];
 	const char *USERNAME = argv[2];
-	strncpy(user_info.username, USERNAME, username_len);
+	strncpy(userData.username, USERNAME, username_len);
 
 	fprintf(stdout, "Connecting to the server...\n");
 	client_connect(IP);
