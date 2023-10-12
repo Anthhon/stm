@@ -29,7 +29,8 @@ ServerMetadata serverData = {
 	.PROTOCOL = AF_INET,
 	.BACKLOG_SIZE = 32,
 	.socket_handler = 0,
-        .port = 8080,
+	.ip = DEFAULT_IP,
+        .port = DEFAULT_PORT,
 	.socket_connected = false,
 };
 UserMetadata userData = {0};
@@ -37,18 +38,18 @@ MessageMetadata messageData = {0};
 
 void message_build(char *dest)
 {
-		// Get date
-		time_t currentTime;
-		struct tm *localTime;
+	// Get date
+	time_t currentTime;
+	struct tm *localTime;
 
-		currentTime = time(NULL);
-		localTime = localtime(&currentTime);
-		strftime(messageData.date, sizeof(messageData.date), "%m-%d", localTime);
+	currentTime = time(NULL);
+	localTime = localtime(&currentTime);
+	strftime(messageData.date, sizeof(messageData.date), "%m-%d", localTime);
 
-		// Append user data to message
-		memcpy(&messageData.user_data, &userData, sizeof(userData));
-		// Serialize message into buffer
-		memcpy(dest, &messageData, sizeof(messageData));
+	// Append user data to message
+	memcpy(&messageData.user_data, &userData, sizeof(userData));
+	// Serialize message into buffer
+	memcpy(dest, &messageData, sizeof(messageData));
 }
 
 void chat_read(void)

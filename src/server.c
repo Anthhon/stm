@@ -1,6 +1,7 @@
 /* This file should only deal with control flow in server-side */
 
 #include "common.c"
+#include "common.h"
 
 void server_start(void)
 {
@@ -8,7 +9,7 @@ void server_start(void)
 	const int CLI_LEN = sizeof(cli);
 
 	// Creating socket descriptor 
-	fprintf(stdout, "Building connection to socket...\n");
+	OutputInfo("Building connection to socket...\n");
 	if ((serverData.socket_handler = socket(serverData.PROTOCOL, SOCK_STREAM, 0)) == -1){
 		Fatal("Socket creation failed\n");
 	}
@@ -20,31 +21,30 @@ void server_start(void)
 	address.sin_port = htons(serverData.port);
 
 	// Attach socket to given serverData.port 
-	fprintf(stdout, "Building server...\n");
+	OutputInfo("Building server...\n");
 	if (bind(serverData.socket_handler, (struct sockaddr*)&address, sizeof(address)) == -1){
 		Fatal("Socket binding failed\n");
 	}
-	fprintf(stdout, "Waiting for client to connect...\n");
+	OutputInfo("Waiting for client to connect...\n");
 	if (listen(serverData.socket_handler, serverData.BACKLOG_SIZE) == -1){
 		Fatal("Socket listening failed\n");
 	}
-	fprintf(stdout, "Accepting connection from client...\n");
+	OutputInfo("Accepting connection from client...\n");
 	if ((serverData.socket_handler = accept(serverData.socket_handler,(struct sockaddr*)&cli,(socklen_t*)&CLI_LEN)) == -1){
 		Fatal("Failed to accept new client\n");
 	}
-
+	// Declare that the connection has been made
 	serverData.socket_connected = true;
 }
 
 int main(void)
 {
 	// Define username
-	const char USERNAME[] = "Admin";
-	strncpy(userData.username, USERNAME, strlen(USERNAME));
+	strncpy(userData.username, DEFAULT_ADMIN_NAME, strlen(DEFAULT_ADMIN_NAME));
 
-	fprintf(stdout, "Starting server...\n");
+	OutputInfo("Starting server...\n");
 	server_start(); 
-	fprintf(stdout, "Waiting for messages...\n");
+	OutputInfo("Waiting for messages...\n");
 	chat_start();
 
 	/* Closing the connected socket */

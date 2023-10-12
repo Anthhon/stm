@@ -1,23 +1,35 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#define MAX_IP_SIZE 12
 #define MAX_USERNAME_SIZE 32 
 #define MAX_MESSAGE_SIZE 2048
 #define METADATA_DATE_SIZE 8
 #define TERMINATOR 1
 
+#define DEFAULT_ADMIN_NAME "Admin"
+#define DEFAULT_IP "127.0.0.1"
+#define DEFAULT_PORT 8080
+
 #define Fatal(...) fprintf(stdout, __VA_ARGS__); \
 		   exit(EXIT_FAILURE);
 #define OutputInfo(...) fprintf(stdout, "[+] "); fprintf(stdout, __VA_ARGS__);
 
+/**
+ * @brief Structure to hold server metadata.
+ */
 typedef struct ServerMetadata {
 	const int PROTOCOL;
 	const int BACKLOG_SIZE;
 	int socket_handler;
-        unsigned short int port;
+	char ip[12];
+        unsigned int port;
 	bool socket_connected;
 }ServerMetadata;
 
+/**
+ * @brief Structure to hold user metadata.
+ */
 typedef struct UserMetadata {
 	char username[MAX_USERNAME_SIZE];
 }UserMetadata;
