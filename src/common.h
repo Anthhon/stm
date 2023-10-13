@@ -1,10 +1,24 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include<arpa/inet.h>
+#include<netinet/in.h>
+#include<pthread.h>
+#include<regex.h>
+#include<stdbool.h>
+#include<stdint.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<sys/types.h>
+#include<time.h>
+#include<unistd.h>
+
 #define MAX_IP_SIZE 12
 #define MAX_USERNAME_SIZE 32 
 #define MAX_MESSAGE_SIZE 2048
 #define METADATA_DATE_SIZE 8
+#define BACKLOG_SIZE 16
 #define TERMINATOR 1
 
 #define DEFAULT_ADMIN_NAME "Admin"
@@ -19,11 +33,10 @@
  * @brief Structure to hold server metadata.
  */
 typedef struct ServerMetadata {
-	const int PROTOCOL;
-	const int BACKLOG_SIZE;
-	int socket_handler;
+	const uint8_t PROTOCOL;
+	int8_t socket_handler;
 	char ip[12];
-        unsigned int port;
+        uint16_t port;
 	bool socket_connected;
 }ServerMetadata;
 
@@ -38,6 +51,7 @@ typedef struct UserMetadata {
  * @brief Structure to hold message metadata.
  */
 typedef struct MessageMetadata {
+	bool has_content;
         char date[METADATA_DATE_SIZE];
         UserMetadata user_data;
         char message[MAX_MESSAGE_SIZE];

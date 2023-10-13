@@ -26,7 +26,7 @@ void server_start(void)
 		Fatal("Socket binding failed\n");
 	}
 	OutputInfo("Waiting for client to connect...\n");
-	if (listen(serverData.socket_handler, serverData.BACKLOG_SIZE) == -1){
+	if (listen(serverData.socket_handler, BACKLOG_SIZE) == -1){
 		Fatal("Socket listening failed\n");
 	}
 	OutputInfo("Accepting connection from client...\n");
@@ -37,10 +37,41 @@ void server_start(void)
 	serverData.socket_connected = true;
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
+	// Avoid missing arguments
+	if (argc != 4){
+		Fatal("Usage: %s [server_ip] [username] [port]\n", argv[0]);
+	}
+
+	// Check username
+	regex_t regex;
+	if (regcomp(&regex, "^[a-zA-Z0-9]+$", REG_EXTENDED) != 0) {
+		Fatal("Regex compilation failed\n");
+	}
+	if (regexec(&regex, argv[2], 0, NULL, 0) != 0) {
+		Fatal("Invalid username format. Use only alphanumeric characters\n");
+	}
+	regfree(&regex);
+	
+	const size_t username_len = strlen(argv[2]);
+	if (username_len > MAX_USERNAME_SIZE - TERMINATOR) {
+		Fatal("Username \"%s\" is too long\n", argv[2]);
+	}
+
+	// Define IP
+	const char *IP = argv[1];
+	strncpy(serverData.ip, IP, sizeof(serverData.ip));
 	// Define username
-	strncpy(userData.username, DEFAULT_ADMIN_NAME, strlen(DEFAULT_ADMIN_NAME));
+	const char *USERNAME = argv[2];
+	strncpy(userData.username, USERNAME, sizeof(userData.username));
+	// Check and define server PORT
+	const char *PORT = argv[3];
+	unsigned int PORT_VAL = atoi(PORT);
+	if (PORT_VAL < 1 || PORT_VAL > 65535) {
+		Fatal("Invalid port number. Port must be between 1 and 65535\n");
+	}
+	serverData.port = PORT_VAL;
 
 	OutputInfo("Starting server...\n");
 	server_start(); 

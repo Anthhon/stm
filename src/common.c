@@ -8,33 +8,61 @@
  * sends the "Exit" message, indicating their desire to disconnect from the server.
  */
 
-#include<arpa/inet.h>
-#include<stdbool.h>
-#include<netinet/in.h>
-#include<sys/types.h>
-#include<pthread.h>
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
-#include<time.h>
-#include<unistd.h>
-
 #include"colors.h"
 #include"common.h"
+#include <stdlib.h>
+#include <string.h>
 
 pthread_mutex_t output_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Initialize metadata info
 ServerMetadata serverData = {
 	.PROTOCOL = AF_INET,
-	.BACKLOG_SIZE = 32,
 	.socket_handler = 0,
 	.ip = DEFAULT_IP,
         .port = DEFAULT_PORT,
 	.socket_connected = false,
 };
+
 UserMetadata userData = {0};
 MessageMetadata messageData = {0};
+
+size_t messageHistorySize = 0;
+MessageMetadata messageHistory[BACKLOG_SIZE] = {0};
+
+void message_add_to_history(MessageMetadata *messageReceived)
+{
+	// Free space to new message into history
+	for (int i = BACKLOG_SIZE - 2; i >= 0; --i) {
+		// Next iteration if message is empty
+		if (!messageHistory[i].has_content) continue;
+
+		// Clear previous message
+		memset(&messageHistory[i + 1], 0, sizeof(MessageMetadata)); 
+		// Move actual message to the previous field
+		memcpy(&messageHistory[i + 1], &messageHistory[i], sizeof(MessageMetadata));
+	}
+
+	// Append new message to hist
+	memcpy(&messageHistory[0], messageReceived, sizeof(MessageMetadata));
+	
+	// Print all messages inside history
+	pthread_mutex_lock(&output_mutex);
+	printf("\e[1;1H\e[2J"); // Clear terminal
+	for (int i = BACKLOG_SIZE; i >= 0; --i) {
+		// Next iteration if message is empty
+		if (messageHistory[i].has_content) {
+			// Lock output file to print message
+			fprintf(stdout, "[%s] %s%s:%s %s", messageHistory[i].date, BGRN, messageHistory[i].user_data.username, CRESET, messageHistory[i].message);
+
+		}
+	}
+	// Reproduce the line user input line
+	printf("\r"); // Clear current line
+	fprintf(stdout, "%s%s:%s ", BYEL, userData.username, CRESET);
+	fflush(stdout);
+	pthread_mutex_unlock(&output_mutex);
+}
 
 void message_build(char *dest)
 {
@@ -45,6 +73,7 @@ void message_build(char *dest)
 	currentTime = time(NULL);
 	localTime = localtime(&currentTime);
 	strftime(messageData.date, sizeof(messageData.date), "%m-%d", localTime);
+	messageData.has_content = true;
 
 	// Append user data to message
 	memcpy(&messageData.user_data, &userData, sizeof(userData));
@@ -58,24 +87,15 @@ void chat_read(void)
 
 	// Read and print-out received message
 	while(serverData.socket_connected){
-		int valread = 0;
+		ssize_t valread = 0;
 		if ((valread = read(serverData.socket_handler, &messageReceived, sizeof(messageReceived))) == -1) {
 			Fatal("Failed to read content from socket\n");
 		}
 
 		// Check if any text was read from socket
 		if (valread){
-			pthread_mutex_lock(&output_mutex);
-			printf("\r"); // Clear current line
-			fprintf(stdout, "[%s] %s%s:%s %s", messageReceived.date, BGRN, messageReceived.user_data.username, CRESET, messageReceived.message);
-			
-			// Reproduce the line user input line
-			printf("\r"); // Clear current line
-			fprintf(stdout, "%s%s:%s ", BYEL, userData.username, CRESET);
-			fflush(stdout);
-			pthread_mutex_unlock(&output_mutex);
-
-			// Clean messageReceived buffer
+			// Print messageReceived and clean buffer
+			message_add_to_history(&messageReceived);
 			memset(&messageReceived, 0, sizeof(messageReceived));
 		}
 	}
@@ -83,13 +103,13 @@ void chat_read(void)
 
 void chat_write(void)
 {
+	// Print username
+	pthread_mutex_lock(&output_mutex);
+	fprintf(stdout, "%s%s:%s ", BYEL, userData.username, CRESET);
+	fflush(stdout);
+	pthread_mutex_unlock(&output_mutex);
 	// Read server message, insert into buffer and sent it 
 	while(serverData.socket_connected){
-		// Print username
-		pthread_mutex_lock(&output_mutex);
-		fprintf(stdout, "%s%s:%s ", BYEL, userData.username, CRESET);
-		fflush(stdout);
-		pthread_mutex_unlock(&output_mutex);
 
 		// Get new messages
 		if (fgets(messageData.message, MAX_MESSAGE_SIZE, stdin) == NULL){
@@ -97,17 +117,21 @@ void chat_write(void)
 		};
 
 		// Check if msg contains "Exit" then quit server 
-		if (strncmp("Exit", messageData.message, 4) == 0){
+		if (strncmp("/exit", messageData.message, 5) == 0){
 			fprintf(stdout, "Exiting server...\n");
 			serverData.socket_connected = false;
+			exit(EXIT_SUCCESS);
 		}
 
 		
-		// Build and send message 
+		// Build message into 'messageToSend' and send it
 		char messageToSend[sizeof(messageData)];
 
 		message_build(messageToSend);
 		write(serverData.socket_handler, messageToSend, sizeof(messageToSend));
+
+		// Add message to history
+		message_add_to_history(&messageData);
 
 		// Clean message buffers
 		memset(messageData.message, 0, sizeof(messageData.message));

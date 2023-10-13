@@ -3,8 +3,6 @@
 #include "common.c"
 #include "common.h"
 
-#include <regex.h>
-
 void client_connect(const char *IP)
 {
 	struct sockaddr_in address;
@@ -33,7 +31,7 @@ void client_connect(const char *IP)
 
 int main(int argc, char const *argv[])
 {
-	// avoid putting arguments in wrong order
+	// Avoid missing arguments
 	if (argc != 4){
 		Fatal("Usage: %s [server_ip] [username] [port]\n", argv[0]);
 	}
