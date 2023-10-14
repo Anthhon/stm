@@ -10,7 +10,7 @@ void server_start(void)
 
 	// Creating socket descriptor 
 	OutputInfo("Building connection to socket...\n");
-	if ((serverData.socket_handler = socket(serverData.PROTOCOL, SOCK_STREAM, 0)) == -1){
+	if ((serverData.socketHandler = socket(serverData.PROTOCOL, SOCK_STREAM, 0)) == -1){
 		Fatal("Socket creation failed\n");
 	}
 
@@ -22,19 +22,19 @@ void server_start(void)
 
 	// Attach socket to given serverData.port 
 	OutputInfo("Building server...\n");
-	if (bind(serverData.socket_handler, (struct sockaddr*)&address, sizeof(address)) == -1){
+	if (bind(serverData.socketHandler, (struct sockaddr*)&address, sizeof(address)) == -1){
 		Fatal("Socket binding failed\n");
 	}
 	OutputInfo("Waiting for client to connect...\n");
-	if (listen(serverData.socket_handler, BACKLOG_SIZE) == -1){
+	if (listen(serverData.socketHandler, BACKLOG_SIZE) == -1){
 		Fatal("Socket listening failed\n");
 	}
 	OutputInfo("Accepting connection from client...\n");
-	if ((serverData.socket_handler = accept(serverData.socket_handler,(struct sockaddr*)&cli,(socklen_t*)&CLI_LEN)) == -1){
+	if ((serverData.socketHandler = accept(serverData.socketHandler,(struct sockaddr*)&cli,(socklen_t*)&CLI_LEN)) == -1){
 		Fatal("Failed to accept new client\n");
 	}
 	// Declare that the connection has been made
-	serverData.socket_connected = true;
+	serverData.isConnected = true;
 }
 
 int main(int argc, char *argv[])
@@ -76,13 +76,10 @@ int main(int argc, char *argv[])
 	OutputInfo("Starting server...\n");
 	server_start(); 
 	OutputInfo("Waiting for messages...\n");
-	chat_start();
+	chatStart();
 
 	/* Closing the connected socket */
-	close(serverData.socket_connected);
-#ifdef _WIN32
-	WSACleanup();
-#endif
+	close(serverData.isConnected);
 
 	return 0;
 }

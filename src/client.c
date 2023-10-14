@@ -10,7 +10,7 @@ void client_connect(const char *IP)
 	
 	// Creating socket descriptor 
 	OutputInfo("Building connection to socket\n");
-	if ((serverData.socket_handler = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+	if ((serverData.socketHandler = socket(AF_INET, SOCK_STREAM, 0)) == -1){
 		Fatal("socket creation failed");
 	}
 	address.sin_family = AF_INET;
@@ -22,11 +22,11 @@ void client_connect(const char *IP)
 		Fatal("invalid IP address\n");
 	}
 	// Initiate connection on a socket 
-	if (connect(serverData.socket_handler,(struct sockaddr*)&address, sizeof(address)) == -1) {
+	if (connect(serverData.socketHandler,(struct sockaddr*)&address, sizeof(address)) == -1) {
 		Fatal("Socket connection failed\n");
 	}
 	// Declare that the connection has been made
-	serverData.socket_connected = true;
+	serverData.isConnected = true;
 }
 
 int main(int argc, char const *argv[])
@@ -68,10 +68,10 @@ int main(int argc, char const *argv[])
 	OutputInfo("Connecting to the server %s...\n", serverData.ip);
 	client_connect(serverData.ip);
 	OutputInfo("Starting chat as %s...\n", userData.username);
-	chat_start();
+	chatStart();
 
 	/* Closing the connected socket */
-	close(serverData.socket_connected);
+	close(serverData.isConnected);
 
 	return(0);
 }

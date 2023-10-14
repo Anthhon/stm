@@ -10,27 +10,25 @@
 
 #include"colors.h"
 #include"common.h"
-#include <stdlib.h>
-#include <string.h>
 
-pthread_mutex_t output_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t outputMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Initialize metadata info
-ServerMetadata serverData = {
+ServerInfo serverData = {
 	.PROTOCOL = AF_INET,
-	.socket_handler = 0,
+	.socketHandler = 0,
 	.ip = DEFAULT_IP,
         .port = DEFAULT_PORT,
-	.socket_connected = false,
+	.isConnected = false,
 };
 
-UserMetadata userData = {0};
-MessageMetadata messageData = {0};
+UserInfo userData = {0};
+Message messageData = {0};
 
 size_t messageHistorySize = 0;
-MessageMetadata messageHistory[BACKLOG_SIZE] = {0};
+Message messageHistory[BACKLOG_SIZE] = {0};
 
-void message_add_to_history(MessageMetadata *messageReceived)
+void messageAddToHistory(Message *messageReceived)
 {
 	// Free space to new message into history
 	for (int i = BACKLOG_SIZE - 2; i >= 0; --i) {
@@ -38,16 +36,16 @@ void message_add_to_history(MessageMetadata *messageReceived)
 		if (!messageHistory[i].has_content) continue;
 
 		// Clear previous message
-		memset(&messageHistory[i + 1], 0, sizeof(MessageMetadata)); 
+		memset(&messageHistory[i + 1], 0, sizeof(Message)); 
 		// Move actual message to the previous field
-		memcpy(&messageHistory[i + 1], &messageHistory[i], sizeof(MessageMetadata));
+		memcpy(&messageHistory[i + 1], &messageHistory[i], sizeof(Message));
 	}
 
 	// Append new message to hist
-	memcpy(&messageHistory[0], messageReceived, sizeof(MessageMetadata));
+	memcpy(&messageHistory[0], messageReceived, sizeof(Message));
 	
 	// Print all messages inside history
-	pthread_mutex_lock(&output_mutex);
+	pthread_mutex_lock(&outputMutex);
 	printf("\e[1;1H\e[2J"); // Clear terminal
 	for (int i = BACKLOG_SIZE; i >= 0; --i) {
 		// Next iteration if message is empty
@@ -61,10 +59,10 @@ void message_add_to_history(MessageMetadata *messageReceived)
 	printf("\r"); // Clear current line
 	fprintf(stdout, "%s%s:%s ", BYEL, userData.username, CRESET);
 	fflush(stdout);
-	pthread_mutex_unlock(&output_mutex);
+	pthread_mutex_unlock(&outputMutex);
 }
 
-void message_build(char *dest)
+void messageBuild(char *dest)
 {
 	// Get date
 	time_t currentTime;
@@ -81,35 +79,35 @@ void message_build(char *dest)
 	memcpy(dest, &messageData, sizeof(messageData));
 }
 
-void chat_read(void)
+void chatRead(void)
 {
-	MessageMetadata messageReceived = {0};
+	Message messageReceived = {0};
 
 	// Read and print-out received message
-	while(serverData.socket_connected){
+	while(serverData.isConnected){
 		ssize_t valread = 0;
-		if ((valread = read(serverData.socket_handler, &messageReceived, sizeof(messageReceived))) == -1) {
+		if ((valread = read(serverData.socketHandler, &messageReceived, sizeof(messageReceived))) == -1) {
 			Fatal("Failed to read content from socket\n");
 		}
 
 		// Check if any text was read from socket
 		if (valread){
 			// Print messageReceived and clean buffer
-			message_add_to_history(&messageReceived);
+			messageAddToHistory(&messageReceived);
 			memset(&messageReceived, 0, sizeof(messageReceived));
 		}
 	}
 }
 
-void chat_write(void)
+void chatWrite(void)
 {
 	// Print username
-	pthread_mutex_lock(&output_mutex);
+	pthread_mutex_lock(&outputMutex);
 	fprintf(stdout, "%s%s:%s ", BYEL, userData.username, CRESET);
 	fflush(stdout);
-	pthread_mutex_unlock(&output_mutex);
+	pthread_mutex_unlock(&outputMutex);
 	// Read server message, insert into buffer and sent it 
-	while(serverData.socket_connected){
+	while(serverData.isConnected){
 
 		// Get new messages
 		if (fgets(messageData.message, MAX_MESSAGE_SIZE, stdin) == NULL){
@@ -119,19 +117,18 @@ void chat_write(void)
 		// Check if msg contains "Exit" then quit server 
 		if (strncmp("/exit", messageData.message, 5) == 0){
 			fprintf(stdout, "Exiting server...\n");
-			serverData.socket_connected = false;
+			serverData.isConnected = false;
 			exit(EXIT_SUCCESS);
 		}
-
 		
 		// Build message into 'messageToSend' and send it
 		char messageToSend[sizeof(messageData)];
 
-		message_build(messageToSend);
-		write(serverData.socket_handler, messageToSend, sizeof(messageToSend));
+		messageBuild(messageToSend);
+		write(serverData.socketHandler, messageToSend, sizeof(messageToSend));
 
 		// Add message to history
-		message_add_to_history(&messageData);
+		messageAddToHistory(&messageData);
 
 		// Clean message buffers
 		memset(messageData.message, 0, sizeof(messageData.message));
@@ -139,16 +136,16 @@ void chat_write(void)
 	}
 }
 
-void chat_start(void)
+void chatStart(void)
 {
 	// Create and designate thread functions to read and write content in/to socket 
 	pthread_t t1, t2;
 
 	// Assign a thread to each process
-	if (pthread_create(&t1, NULL, (void *) chat_write, NULL) != 0){
+	if (pthread_create(&t1, NULL, (void *) chatWrite, NULL) != 0){
 		Fatal("Failed to create new thread\n");
 	}
-	if (pthread_create(&t2, NULL, (void *) chat_read, NULL)){
+	if (pthread_create(&t2, NULL, (void *) chatRead, NULL)){
 		Fatal("Failed to create new thread\n");
 	}
 

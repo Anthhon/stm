@@ -32,51 +32,62 @@
 /**
  * @brief Structure to hold server metadata.
  */
-typedef struct ServerMetadata {
+typedef struct ServerInfo {
 	const uint8_t PROTOCOL;
-	int8_t socket_handler;
+	int8_t socketHandler;
 	char ip[12];
         uint16_t port;
-	bool socket_connected;
-}ServerMetadata;
+	bool isConnected;
+}ServerInfo;
 
 /**
  * @brief Structure to hold user metadata.
  */
-typedef struct UserMetadata {
+typedef struct UserInfo {
 	char username[MAX_USERNAME_SIZE];
-}UserMetadata;
+}UserInfo;
 
 /**
  * @brief Structure to hold message metadata.
  */
-typedef struct MessageMetadata {
+typedef struct Message {
 	bool has_content;
         char date[METADATA_DATE_SIZE];
-        UserMetadata user_data;
+        UserInfo user_data;
         char message[MAX_MESSAGE_SIZE];
-}MessageMetadata;
+}Message;
+
+/**
+ * @brief Adds a received message to the chat message history.
+ * 
+ * This function adds the received message to the chat message history, shifting
+ * existing messages to make space for the new message. It also prints all messages
+ * inside the history to the standard output.
+ * 
+ * @param messageReceived Pointer to the received message metadata.
+ */
+void messageAddToHistory(Message *messageReceived);
 
 /**
  * @brief Builds a chat message with timestamp and user data.
  * 
  * @param dest Pointer to the destination buffer to store the serialized message.
  */
-void message_build(char *dest);
+void messageBuild(char *dest);
 
 /**
  * @brief Reads and prints received messages from the server.
  */
-void chat_read(void);
+void chatRead(void);
 
 /**
  * @brief Reads user input messages, sends them to the server, and handles user exit.
  */
-void chat_write(void);
+void chatWrite(void);
 
 /**
  * @brief Starts the chat server by creating threads for reading and writing messages.
  */
-void chat_start(void);
+void chatStart(void);
 
 #endif
