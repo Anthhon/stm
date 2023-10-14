@@ -12,6 +12,8 @@
 #include"common.h"
 
 pthread_mutex_t outputMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t historyMutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 // Initialize metadata info
 ServerInfo serverData = {
@@ -28,9 +30,22 @@ Message messageData = {0};
 size_t messageHistorySize = 0;
 Message messageHistory[BACKLOG_SIZE] = {0};
 
-void messageAddToHistory(Message *messageReceived)
+void handleCommand(char *command)
+{
+	// Check for different commands
+	if (strncmp(EXIT_COMMAND, command, strlen(EXIT_COMMAND)) == 0) {
+		fprintf(stdout, "Exiting server...\n");
+		serverData.isConnected = false;
+		exit(EXIT_SUCCESS);
+		return;
+	}
+	return;
+}
+
+void messagePrint(Message *messageReceived)
 {
 	// Free space to new message into history
+	pthread_mutex_lock(&historyMutex);
 	for (int i = BACKLOG_SIZE - 2; i >= 0; --i) {
 		// Next iteration if message is empty
 		if (!messageHistory[i].has_content) continue;
@@ -43,21 +58,31 @@ void messageAddToHistory(Message *messageReceived)
 
 	// Append new message to hist
 	memcpy(&messageHistory[0], messageReceived, sizeof(Message));
-	
+
 	// Print all messages inside history
 	pthread_mutex_lock(&outputMutex);
-	printf("\e[1;1H\e[2J"); // Clear terminal
+
+	// Clear last messages
+	for (int i = 0; i <= BACKLOG_SIZE; ++i) {
+		(void)printf("\e[%d;1H", i);
+		(void)printf("\e[K\r");
+	}
+
+	printf("\e[0;1H"); // Go back to first line
 	for (int i = BACKLOG_SIZE; i >= 0; --i) {
 		// Next iteration if message is empty
 		if (messageHistory[i].has_content) {
 			// Lock output file to print message
-			fprintf(stdout, "[%s] %s%s:%s %s", messageHistory[i].date, BGRN, messageHistory[i].user_data.username, CRESET, messageHistory[i].message);
-
+			fprintf(stdout, "[%s] %s%s:%s %s", \
+					messageHistory[i].date, BGRN, \
+					messageHistory[i].user_data.username, CRESET, \
+					messageHistory[i].message);
 		}
 	}
-	// Reproduce the line user input line
-	printf("\r"); // Clear current line
-	fprintf(stdout, "%s%s:%s ", BYEL, userData.username, CRESET);
+	pthread_mutex_unlock(&historyMutex);
+	// Return to user input line
+	printf("\e[%d;%dH", BACKLOG_SIZE + 2, (unsigned)strlen(userData.username) + 2);
+	//fprintf(stdout, "%s%s:%s ", BYEL, userData.username, CRESET);
 	fflush(stdout);
 	pthread_mutex_unlock(&outputMutex);
 }
@@ -93,7 +118,7 @@ void chatRead(void)
 		// Check if any text was read from socket
 		if (valread){
 			// Print messageReceived and clean buffer
-			messageAddToHistory(&messageReceived);
+			messagePrint(&messageReceived);
 			memset(&messageReceived, 0, sizeof(messageReceived));
 		}
 	}
@@ -103,32 +128,40 @@ void chatWrite(void)
 {
 	// Print username
 	pthread_mutex_lock(&outputMutex);
-	fprintf(stdout, "%s%s:%s ", BYEL, userData.username, CRESET);
+	printf("%s%s:%s ", BYEL, userData.username, CRESET);
 	fflush(stdout);
 	pthread_mutex_unlock(&outputMutex);
 	// Read server message, insert into buffer and sent it 
 	while(serverData.isConnected){
-
 		// Get new messages
 		if (fgets(messageData.message, MAX_MESSAGE_SIZE, stdin) == NULL){
 			Fatal("Error while trying to read message\n");
 		};
 
+		// Check for a command call
+		if (strncmp("/", messageData.message, 1) == 0) {
+			char *command = messageData.message + 1;
+			handleCommand(command);
+		}
+
 		// Check if msg contains "Exit" then quit server 
 		if (strncmp("/exit", messageData.message, 5) == 0){
-			fprintf(stdout, "Exiting server...\n");
-			serverData.isConnected = false;
-			exit(EXIT_SUCCESS);
 		}
 		
 		// Build message into 'messageToSend' and send it
 		char messageToSend[sizeof(messageData)];
 
+		// Build and send message
 		messageBuild(messageToSend);
 		write(serverData.socketHandler, messageToSend, sizeof(messageToSend));
 
-		// Add message to history
-		messageAddToHistory(&messageData);
+		// Clear message input
+		printf("\e[%d;1H", BACKLOG_SIZE + 2);
+		printf("\e[K\r");
+		fprintf(stdout, "%s%s:%s ", BYEL, userData.username, CRESET);
+
+		// Add message to history and print it all
+		messagePrint(&messageData);
 
 		// Clean message buffers
 		memset(messageData.message, 0, sizeof(messageData.message));
@@ -142,6 +175,7 @@ void chatStart(void)
 	pthread_t t1, t2;
 
 	// Assign a thread to each process
+	printf("\e[1;1H\e[2J"); // Clear terminal
 	if (pthread_create(&t1, NULL, (void *) chatWrite, NULL) != 0){
 		Fatal("Failed to create new thread\n");
 	}

@@ -1,8 +1,10 @@
 #!/bin/bash
 
 CC=gcc
+WCC=x86_64-w64-mingw32-gcc
 FLAGS=-Wall -Werror -Wextra
-LIBS=-pthread
+LINUX_LIBS=-pthread
+WINDOWS_LIBS=-pthread -static-libgcc -lsw2_32
 
 PATH_SRC=src
 PATH_BUILD=build
@@ -15,14 +17,22 @@ build-linux:
 	@echo Checking build path...
 	@mkdir -p $(PATH_BUILD)
 	@echo Building client...
-	$(CC) $(LIBS) -o $(PATH_BUILD)/$(FILE_BIN_CLIENT) $(PATH_SRC)/$(FILE_SRC_CLIENT) $(FLAGS)
+	$(CC) $(LINUX_LIBS) -o $(PATH_BUILD)/$(FILE_BIN_CLIENT) $(PATH_SRC)/$(FILE_SRC_CLIENT) $(FLAGS)
 	@echo Building server...
-	$(CC) $(LIBS) -o $(PATH_BUILD)/$(FILE_BIN_SERVER) $(PATH_SRC)/$(FILE_SRC_SERVER) $(FLAGS)
+	$(CC) $(LINUX_LIBS) -o $(PATH_BUILD)/$(FILE_BIN_SERVER) $(PATH_SRC)/$(FILE_SRC_SERVER) $(FLAGS)
 
 build-linux-debug:
 	@echo Checking build path...
 	@mkdir -p $(PATH_BUILD)
 	@echo Building client...
-	$(CC) $(LIBS) -o $(PATH_BUILD)/$(FILE_BIN_CLIENT) $(PATH_SRC)/$(FILE_SRC_CLIENT) $(FLAGS) -d
+	$(CC) $(LINUX_LIBS) -o $(PATH_BUILD)/$(FILE_BIN_CLIENT) $(PATH_SRC)/$(FILE_SRC_CLIENT) $(FLAGS) -d
 	@echo Building server...
-	$(CC) $(LIBS) -o $(PATH_BUILD)/$(FILE_BIN_SERVER) $(PATH_SRC)/$(FILE_SRC_SERVER) $(FLAGS) -d
+	$(CC) $(LINUX_LIBS) -o $(PATH_BUILD)/$(FILE_BIN_SERVER) $(PATH_SRC)/$(FILE_SRC_SERVER) $(FLAGS) -d
+
+build-windows:
+	@echo Checking build path...
+	@mkdir -p $(PATH_BUILD)
+	@echo Building client...
+	$(WCC) $(WINDOWS_LIBS) -o $(PATH_BUILD)/$(FILE_BIN_CLIENT).exe $(PATH_SRC)/$(FILE_SRC_CLIENT) $(FLAGS)
+	@echo Building server...
+	$(WCC) $(WINDOWS_LIBS) -o $(PATH_BUILD)/$(FILE_BIN_SERVER).exe $(PATH_SRC)/$(FILE_SRC_SERVER) $(FLAGS)

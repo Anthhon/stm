@@ -81,5 +81,9 @@ int main(int argc, char *argv[])
 	/* Closing the connected socket */
 	close(serverData.isConnected);
 
+#ifdef _WIN32
+	WSACleanup();
+#endif
+
 	return 0;
 }

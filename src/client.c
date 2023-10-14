@@ -21,6 +21,7 @@ void client_connect(const char *IP)
 	if (inet_aton(IP, &(address.sin_addr)) == 0){
 		Fatal("invalid IP address\n");
 	}
+
 	// Initiate connection on a socket 
 	if (connect(serverData.socketHandler,(struct sockaddr*)&address, sizeof(address)) == -1) {
 		Fatal("Socket connection failed\n");
