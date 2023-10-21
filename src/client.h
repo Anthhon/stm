@@ -9,15 +9,11 @@
 void handleCommand(char *command);
 
 /**
- * @brief Adds a received message to the chat message history.
- * 
- * This function adds the received message to the chat message history, shifting
- * existing messages to make space for the new message. It also prints all messages
- * inside the history to the standard output.
+ * @brief Print all received messages at history.
  * 
  * @param messageReceived Pointer to the received message info.
  */
-void messageAddToHistory(Message *messageReceived);
+void messagePrint(Message *messageReceived);
 
 /**
  * @brief Builds a chat message with timestamp and user data.

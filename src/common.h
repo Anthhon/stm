@@ -17,10 +17,13 @@
 
 #define EXIT_COMMAND "exit"
 
-#define Fatal(...) fprintf(stderr, __VA_ARGS__); \
+#define Fatal(...) printf(__VA_ARGS__); \
+                  printf("-----------------------------------------\n"); \
+                  perror("[ERROR]");                                   \
+                  printf("-----------------------------------------\n"); \
 		   exit(EXIT_FAILURE);
-#define OutputInfo(...) fprintf(stdout, "[+] "); fprintf(stdout, __VA_ARGS__);
-#define OutputLog(...) fprintf(stdout, "[LOG] "); fprintf(stdout, __VA_ARGS__);
+#define OutputInfo(...) printf("[!] "); printf(__VA_ARGS__);
+#define OutputLog(...) printf(__VA_ARGS__);
 
 /**
  * @brief Structure to hold server info.

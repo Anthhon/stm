@@ -3,7 +3,7 @@
 CC=gcc
 WCC=x86_64-w64-mingw32-gcc
 FLAGS=-Wall -Werror -Wextra
-LINUX_LIBS=-pthread
+LINUX_LIBS=-pthread -ltermui
 WINDOWS_LIBS=-pthread -static-libgcc -lsw2_32
 
 PATH_SRC=src
@@ -17,9 +17,9 @@ build-linux:
 	@echo Checking build path...
 	@mkdir -p $(PATH_BUILD)
 	@echo Building client...
-	$(CC) $(LINUX_LIBS) -o $(PATH_BUILD)/$(FILE_BIN_CLIENT) $(PATH_SRC)/$(FILE_SRC_CLIENT) $(FLAGS)
+	$(CC) $(FLAGS) -o $(PATH_BUILD)/$(FILE_BIN_CLIENT) $(PATH_SRC)/$(FILE_SRC_CLIENT) $(LINUX_LIBS)
 	@echo Building server...
-	$(CC) $(LINUX_LIBS) -o $(PATH_BUILD)/$(FILE_BIN_SERVER) $(PATH_SRC)/$(FILE_SRC_SERVER) $(FLAGS)
+	$(CC) $(FLAGS) -o $(PATH_BUILD)/$(FILE_BIN_SERVER) $(PATH_SRC)/$(FILE_SRC_SERVER) $(LINUX_LIBS)
 
 build-linux-debug:
 	@echo Checking build path...

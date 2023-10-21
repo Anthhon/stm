@@ -22,6 +22,7 @@
 #include "server.h"
 #include "colors.h"
 
+// Data structure to store server information
 ServerInfo serverData = {
 	.PROTOCOL = AF_INET,
 	.socketMaster = 0,
@@ -30,69 +31,73 @@ ServerInfo serverData = {
 	.isConnected = false,
 };
 
-void messageNew(int *clients, int sender, Message *messageReceived)
+// Handle new messages from clients
+void messagebroadcast(int *clients, int sender, Message *messageReceived)
 {
 	for (int i = 0; i < MAX_CLIENTS; ++i) {
 		if (clients[i] > 0 && clients[i] != sender) {
 			// Send message to all clients connected
 			send(clients[i], messageReceived, sizeof(*messageReceived), 0);
-			// Create message log
+			// Log message
 			fprintf(stdout, "[%s] %s'%s'%s: %s", \
-                                       messageReceived->date, BGRN, \
-                                       messageReceived->user_data.username, CRESET, \
-                                       messageReceived->message);
+					messageReceived->date, \
+					BGRN, messageReceived->user_data.username, CRESET, \
+					messageReceived->message);
 		}
 	}
 }
 
-void connectionClose(int client, int CLI_LEN, size_t *client_count, struct sockaddr_in *cli, struct sockaddr_in *address)
+// Close the connection with a client
+void connectionClose(int *client, int CLI_LEN, struct sockaddr_in *cli, struct sockaddr_in *address)
 {
 	// Get disconnected client details
-	getpeername(client, (struct sockaddr*)&cli, (socklen_t*)&CLI_LEN);
+	getpeername(*client, (struct sockaddr*)&cli, (socklen_t*)&CLI_LEN);
 	OutputInfo("Client disconnected!\n\t- IP: %s\n\t- Port: %d\n", inet_ntoa(address->sin_addr), ntohs(address->sin_port));
 
 	// Close client socket
-	close(client);
-	client = 0;
-	--client_count;
+	close(*client);
+	*client = 0;
 }
 
-void connectionNew(int new_socket, int clients[MAX_CLIENTS], struct sockaddr_in* cli, size_t* client_count)
+// Handle new client connections
+void connectionNew(int new_client, int clients[MAX_CLIENTS], struct sockaddr_in* cli)
 {
 	for (int i = 0; i < MAX_CLIENTS; ++i) {
 		if (clients[i] == 0) {
-			clients[i] = new_socket;
+			clients[i] = new_client;
 			OutputInfo("New client connected!\n\t- IP: %s\n\t- Port: %d\n\t- SocketFd: %d\n", 
-					inet_ntoa(cli->sin_addr), ntohs(cli->sin_port), new_socket);
-			(*client_count)++;
+					inet_ntoa(cli->sin_addr), ntohs(cli->sin_port), new_client);
 			break;
 		}
 	}
 }
 
+
+// Initialize the server and handle client connections
 void serverInitialize(void)
 {
 	struct sockaddr_in address, cli;
+	fd_set socket_read_set;
 	const int CLI_LEN = sizeof(cli);
 	int clients[MAX_CLIENTS] = {0};
-	int new_socket;
-	size_t client_count = 0;
-	fd_set readfds;
+	int new_client;
 
 	// Creating socket descriptor 
-	OutputInfo("Building connection to socket...\n");
+	OutputLog("Building connection to socket\n");
 	if ((serverData.socketMaster = socket(serverData.PROTOCOL, SOCK_STREAM, 0)) == -1){
 		Fatal("Socket creation failed\n");
 	}
 
-	// Attaching socket to given serverData.port
+	// Attach socket to given serverData.port 
 	memset(&address, 0, sizeof(address));
 	address.sin_family = serverData.PROTOCOL;
 	address.sin_addr.s_addr = htonl(INADDR_ANY);
 	address.sin_port = htons(serverData.port);
 
-	// Attach socket to given serverData.port 
-	OutputInfo("Building server...\n");
+	OutputLog("Server using protocol %i\n", serverData.PROTOCOL);
+	OutputLog("Server using port %i\n", serverData.port);
+
+	OutputLog("Binding server to socket\n");
 	if (bind(serverData.socketMaster, (struct sockaddr*)&address, sizeof(address)) == -1){
 		Fatal("Socket binding failed\n");
 	}
@@ -100,61 +105,63 @@ void serverInitialize(void)
 	if (listen(serverData.socketMaster, BACKLOG_SIZE) == -1){
 		Fatal("Socket listening failed\n");
 	}
-	OutputInfo("Server initialized waiting for clients to connect...\n");
+	OutputLog("Server initialized, waiting for clients to connect...\n");
 
 	// Handle multi-user connection
 	while(true) {
-		FD_ZERO(&readfds); // Clear socket set
-		FD_SET(serverData.socketMaster, &readfds); // Add master socket to set
+		FD_ZERO(&socket_read_set); // Clear socket set
+		FD_SET(serverData.socketMaster, &socket_read_set); // Add master socket to set
 
 		// Add child socket to set
-		int max_sd = serverData.socketMaster;
+		int max_socket_descriptor = serverData.socketMaster;
 		for (int i = 0; i < MAX_CLIENTS; ++i) {
 			// Add socket to read list if valid
 			if (clients[i] > 0) {
-				FD_SET(clients[i], &readfds);
+				FD_SET(clients[i], &socket_read_set);
 			}
-			// Highest file descriptor
-			if (clients[i] > max_sd){
-				max_sd = clients[i];
+			// Set highest file descriptor to ensure
+			// to check all active client sockets
+			if (clients[i] > max_socket_descriptor){
+				max_socket_descriptor = clients[i];
 			}
 		}
 
 		// Wait for activity in one of the sockets
-		if (select(max_sd + 1, &readfds, NULL, NULL, NULL) < 0 && (errno != EINTR)) {
-			OutputInfo("Failed to read socket content\n");
+		if (select(max_socket_descriptor + 1, &socket_read_set, NULL, NULL, NULL) < 0 && (errno != EINTR)) {
+			OutputLog("Failed to read socket content\n");
 		}
 
 		// Check for new incomming connection in the master socket
-		if (FD_ISSET(serverData.socketMaster, &readfds)) {
-			if ((new_socket = accept(serverData.socketMaster, (struct sockaddr*)&cli,(socklen_t*)&CLI_LEN)) == -1) {
+		if (FD_ISSET(serverData.socketMaster, &socket_read_set)) {
+			if ((new_client = accept(serverData.socketMaster, (struct sockaddr*)&cli,(socklen_t*)&CLI_LEN)) == -1) {
 				Fatal("Failed to connect client\n");
 			}
-			connectionNew(new_socket, clients, &cli, &client_count);
+			connectionNew(new_client, clients, &cli);
 		}
 
-		// IO operation on other socket
+		// Handles already connected client communication
 		Message messageReceived = {0};
 		for (int i = 0; i < MAX_CLIENTS; ++i) {
-			if (FD_ISSET(clients[i], &readfds)) {
-				// Clear the messageReceived content before reading new data
-				memset(&messageReceived, 0, sizeof(messageReceived));
+			// Next client if any message is found
+			if (!FD_ISSET(clients[i], &socket_read_set)) continue;
 
-				// Read content from socket
-				ssize_t valread = 0;
-				if ((valread = read(clients[i], &messageReceived, sizeof(messageReceived))) == -1) {
-					Fatal("Failed to read socket content\n");
-				}
+			// Clear the messageReceived before reading new data
+			memset(&messageReceived, 0, sizeof(messageReceived));
 
-				// Handle disconnected clients
-				if (valread == 0) {
-					connectionClose(clients[i], CLI_LEN, &client_count, &cli, &address);
-					continue;
-				}
-
-				// Echo back received message to all clients
-				messageNew(&clients[0], clients[i], &messageReceived);
+			// Read content from socket
+			ssize_t valread = 0;
+			if ((valread = read(clients[i], &messageReceived, sizeof(messageReceived))) == -1) {
+				Fatal("Failed to read socket content\n");
 			}
+
+			// Handle disconnected clients
+			if (valread == 0) {
+				connectionClose(&clients[i], CLI_LEN, &cli, &address);
+				continue;
+			}
+
+			// Echo back received message to all clients
+			messagebroadcast(&clients[0], clients[i], &messageReceived);
 		}
 	}
 }
@@ -184,7 +191,7 @@ int main(int argc, char *argv[])
 	}
 	serverData.port = PORT_VAL;
 
-	OutputInfo("Starting server...\n");
+	OutputLog("Starting server...\n");
 	serverInitialize(); 
 
 	/* Closing the connected socket */
