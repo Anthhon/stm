@@ -182,7 +182,7 @@ void chatWrite(void)
 
 void chatStart(void)
 {
-       // Create and designate thread functions to read and write content in/to socket 
+       // Create threads
        pthread_t chatWriteThread, chatReadThread;
 
        // Assign a thread to each process

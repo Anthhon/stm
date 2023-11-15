@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <asm-generic/errno-base.h>
+#include <bits/pthreadtypes.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <pthread.h>
@@ -22,6 +23,10 @@
 #include "server.h"
 #include "colors.h"
 
+pthread_mutex_t outputMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t clientsMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t socketSetMutex = PTHREAD_MUTEX_INITIALIZER;
+
 // Data structure to store server information
 ServerInfo serverData = {
 	.PROTOCOL = AF_INET,
@@ -30,6 +35,12 @@ ServerInfo serverData = {
         .port = DEFAULT_PORT,
 	.isConnected = false,
 };
+
+struct sockaddr_in address, cli;
+fd_set socket_read_set;
+const int CLI_LEN = sizeof(cli);
+int clients[MAX_CLIENTS] = {0};
+volatile int connected_clients = 0;
 
 // Handle new messages from clients
 void messagebroadcast(int *clients, int sender, Message *messageReceived)
@@ -52,36 +63,130 @@ void connectionClose(int *client, int CLI_LEN, struct sockaddr_in *cli, struct s
 {
 	// Get disconnected client details
 	getpeername(*client, (struct sockaddr*)&cli, (socklen_t*)&CLI_LEN);
+	pthread_mutex_lock(&outputMutex);
 	OutputInfo("Client disconnected!\n\t- IP: %s\n\t- Port: %d\n", inet_ntoa(address->sin_addr), ntohs(address->sin_port));
+	pthread_mutex_unlock(&outputMutex);
 
 	// Close client socket
 	close(*client);
 	*client = 0;
+	--connected_clients;
 }
 
 // Handle new client connections
-void connectionNew(int new_client, int clients[MAX_CLIENTS], struct sockaddr_in* cli)
+void connectionNew(int new_client, struct sockaddr_in *clientAddress)
 {
 	for (int i = 0; i < MAX_CLIENTS; ++i) {
+		pthread_mutex_lock(&clientsMutex);
 		if (clients[i] == 0) {
 			clients[i] = new_client;
+			//memcpy(clients[i], cli, sizeof(struct sockaddr_in));
+			pthread_mutex_lock(&outputMutex);
 			OutputInfo("New client connected!\n\t- IP: %s\n\t- Port: %d\n\t- SocketFd: %d\n", 
-					inet_ntoa(cli->sin_addr), ntohs(cli->sin_port), new_client);
+					inet_ntoa(clientAddress->sin_addr), ntohs(clientAddress->sin_port), new_client);
+			pthread_mutex_unlock(&outputMutex);
 			break;
+		}
+		pthread_mutex_unlock(&clientsMutex);
+	}
+	++connected_clients;
+}
+
+// Handles already connected client communication
+void handleCommunication(void)
+{
+	while(true) {
+		// Stop communication processes in case anyone is connected
+		if (!connected_clients) continue;
+
+		Message messageReceived = {0};
+
+		for (int i = 0; i < MAX_CLIENTS; ++i) {
+			// Next client if any message is found
+			pthread_mutex_lock(&socketSetMutex);
+			if (!FD_ISSET(clients[i], &socket_read_set)) {
+				continue;
+			}
+			pthread_mutex_unlock(&socketSetMutex);
+
+			// Clear the messageReceived before reading new data
+			memset(&messageReceived, 0, sizeof(messageReceived));
+
+			// Read content from socket
+			ssize_t valread = 0;
+			if ((valread = read(clients[i], &messageReceived, sizeof(messageReceived))) == -1) {
+				Fatal("Failed to read socket content\n");
+			}
+
+			// Handle disconnected clients
+			if (valread == 0) {
+				connectionClose(&clients[i], CLI_LEN, &cli, &address);
+				continue;
+			}
+
+			// Echo back received message to all clients
+			pthread_mutex_lock(&outputMutex);
+			OutputLog("Broadcasting received message...\n");
+			pthread_mutex_unlock(&outputMutex);
+			messagebroadcast(&clients[0], clients[i], &messageReceived);
 		}
 	}
 }
 
+// Handle new users connection
+void handleConnection(void)
+{
+	struct sockaddr_in clientAddress;
+	socklen_t clientAddressLength = sizeof(clientAddress);
+
+	pthread_mutex_lock(&outputMutex);
+	OutputLog("Server initialized, waiting for clients to connect...\n");
+	pthread_mutex_unlock(&outputMutex);
+	while(true) {
+		int new_client;
+		pthread_mutex_lock(&socketSetMutex);
+		FD_ZERO(&socket_read_set); // Clear socket set
+		FD_SET(serverData.socketMaster, &socket_read_set); // Add master socket to set
+
+		// Add child socket to set
+		int max_socket_descriptor = serverData.socketMaster;
+		for (int i = 0; i < MAX_CLIENTS; ++i) {
+			// Add socket to read list if valid
+			if (clients[i] > 0) {
+				FD_SET(clients[i], &socket_read_set);
+			}
+			// Set highest file descriptor to ensure
+			// to check all active client sockets
+			if (clients[i] > max_socket_descriptor){
+				max_socket_descriptor = clients[i];
+			}
+		}
+		pthread_mutex_unlock(&socketSetMutex);
+
+		// Wait for activity in one of the sockets
+		if (select(max_socket_descriptor + 1, &socket_read_set, NULL, NULL, NULL) < 0 && (errno != EINTR)) {
+			pthread_mutex_lock(&outputMutex);
+			OutputLog("Failed to read socket content\n");
+			pthread_mutex_unlock(&outputMutex);
+		}
+
+		// Check for new incomming connection in the master socket
+		pthread_mutex_lock(&socketSetMutex);
+		if (FD_ISSET(serverData.socketMaster, &socket_read_set)) {
+			pthread_mutex_lock(&clientsMutex);
+			if ((new_client = accept(serverData.socketMaster, (struct sockaddr*)&clientAddress,(socklen_t*)&clientAddressLength)) == -1) {
+				Fatal("Failed to connect client\n");
+			}
+			connectionNew(new_client, &clientAddress);
+			pthread_mutex_unlock(&clientsMutex);
+		}
+		pthread_mutex_unlock(&socketSetMutex);
+	}
+}
 
 // Initialize the server and handle client connections
 void serverInitialize(void)
 {
-	struct sockaddr_in address, cli;
-	fd_set socket_read_set;
-	const int CLI_LEN = sizeof(cli);
-	int clients[MAX_CLIENTS] = {0};
-	int new_client;
-
 	// Creating socket descriptor 
 	OutputLog("Building connection to socket\n");
 	if ((serverData.socketMaster = socket(serverData.PROTOCOL, SOCK_STREAM, 0)) == -1){
@@ -105,65 +210,20 @@ void serverInitialize(void)
 	if (listen(serverData.socketMaster, BACKLOG_SIZE) == -1){
 		Fatal("Socket listening failed\n");
 	}
-	OutputLog("Server initialized, waiting for clients to connect...\n");
 
-	// Handle multi-user connection
-	while(true) {
-		FD_ZERO(&socket_read_set); // Clear socket set
-		FD_SET(serverData.socketMaster, &socket_read_set); // Add master socket to set
+	// Create and assign threads to each process
+	pthread_t connectionThread, communicationThread;
 
-		// Add child socket to set
-		int max_socket_descriptor = serverData.socketMaster;
-		for (int i = 0; i < MAX_CLIENTS; ++i) {
-			// Add socket to read list if valid
-			if (clients[i] > 0) {
-				FD_SET(clients[i], &socket_read_set);
-			}
-			// Set highest file descriptor to ensure
-			// to check all active client sockets
-			if (clients[i] > max_socket_descriptor){
-				max_socket_descriptor = clients[i];
-			}
-		}
-
-		// Wait for activity in one of the sockets
-		if (select(max_socket_descriptor + 1, &socket_read_set, NULL, NULL, NULL) < 0 && (errno != EINTR)) {
-			OutputLog("Failed to read socket content\n");
-		}
-
-		// Check for new incomming connection in the master socket
-		if (FD_ISSET(serverData.socketMaster, &socket_read_set)) {
-			if ((new_client = accept(serverData.socketMaster, (struct sockaddr*)&cli,(socklen_t*)&CLI_LEN)) == -1) {
-				Fatal("Failed to connect client\n");
-			}
-			connectionNew(new_client, clients, &cli);
-		}
-
-		// Handles already connected client communication
-		Message messageReceived = {0};
-		for (int i = 0; i < MAX_CLIENTS; ++i) {
-			// Next client if any message is found
-			if (!FD_ISSET(clients[i], &socket_read_set)) continue;
-
-			// Clear the messageReceived before reading new data
-			memset(&messageReceived, 0, sizeof(messageReceived));
-
-			// Read content from socket
-			ssize_t valread = 0;
-			if ((valread = read(clients[i], &messageReceived, sizeof(messageReceived))) == -1) {
-				Fatal("Failed to read socket content\n");
-			}
-
-			// Handle disconnected clients
-			if (valread == 0) {
-				connectionClose(&clients[i], CLI_LEN, &cli, &address);
-				continue;
-			}
-
-			// Echo back received message to all clients
-			messagebroadcast(&clients[0], clients[i], &messageReceived);
-		}
+	if (pthread_create(&connectionThread, NULL, (void*)handleConnection, NULL) != 0) {
+		Fatal("Failed to create new thread");
 	}
+	if (pthread_create(&communicationThread, NULL, (void*)handleCommunication, NULL) != 0) {
+		Fatal("Failed to create new thread");
+	}
+
+	// Wait till both threads end
+	pthread_join(connectionThread, NULL);
+	pthread_join(communicationThread, NULL);
 }
 
 int main(int argc, char *argv[])
