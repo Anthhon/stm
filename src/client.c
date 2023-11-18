@@ -22,8 +22,9 @@
 #include <unistd.h>
 #include <termios.h>
 
+// Termui is a personal TUI library, to see more check:
 // https://github.com/Anthhon/termui
-#include <termui/termui.h>
+#include "libs/termui/termui.h"
 
 #include "colors.h"
 #include "common.h"

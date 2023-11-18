@@ -22,7 +22,8 @@ Working in...
 - [X] Create a basic UDP chat app
 - [X] Implement some basic terminal interface
 - [X] Implement basic message metadata
-- [ ] Implement multi-threading for both client and server
+- [X] Implement [Termui](https://github.com/Anthhon/termui) TUI library
+- [ ] Implement multi-threading for both client and server | IN PROGRESS
 - [ ] Make it work at WAN network
-- [ ] Implement Winsock library so it work on Windows
+- [ ] Implement Winsock library so it work on Windows XD
 - [ ] Add unit tests
