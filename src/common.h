@@ -6,7 +6,7 @@
 #define MAX_MESSAGE_SIZE 4096
 #define METADATA_DATE_SIZE 21
 #define BACKLOG_SIZE 8
-#define MAX_HIST_SIZE 32
+#define MAX_HIST_SIZE 16
 #define MAX_CLIENTS 64
 #define TERMINATOR 1
 
@@ -24,6 +24,23 @@
 		   exit(EXIT_FAILURE);
 #define OutputInfo(...) printf("[!] "); printf(__VA_ARGS__);
 #define OutputLog(...) printf(__VA_ARGS__);
+
+#define LogInfo(...) fprintf(stdout, "[+] "); \
+    fprintf(stdout, __VA_ARGS__)
+#define LogExit(...) fprintf(stderr, "[!] "); \
+    fprintf(stderr, __VA_ARGS__); \
+    exit(EXIT_FAILURE)
+
+#define DEBUG
+
+#ifdef DEBUG
+#define _Debug(code) \
+    do { \
+        code \
+    } while(0)
+#else
+#define _Debug(code)
+#endif
 
 /**
  * @brief Structure to hold server info.

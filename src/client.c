@@ -52,10 +52,8 @@ void handleCommand(char *command)
 {
        // Check for different commands
        if (strncmp(EXIT_COMMAND, command, strlen(EXIT_COMMAND)) == 0) {
-               printf("Exiting server...\n");
                serverData.isConnected = false;
-               exit(EXIT_SUCCESS);
-               return;
+               LogExit("Exiting server...\n");
        }
        return;
 }
@@ -165,7 +163,7 @@ void chatWrite(void)
                        char *command = messageData.message + 1;
                        handleCommand(command);
                }
-               
+
                // Build message into 'messageToSend' and send it
                char messageToSend[sizeof(messageData)];
 
