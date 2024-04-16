@@ -1,6 +1,8 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <stdint.h>
+
 #define MAX_IP_SIZE 12
 #define MAX_USERNAME_SIZE 32 
 #define MAX_MESSAGE_SIZE 4096
@@ -22,8 +24,6 @@
                   perror("[ERROR]");                                   \
                   printf("-----------------------------------------\n"); \
 		   exit(EXIT_FAILURE);
-#define OutputInfo(...) printf("[!] "); printf(__VA_ARGS__);
-#define OutputLog(...) printf(__VA_ARGS__);
 
 #define LogInfo(...) fprintf(stdout, "[+] "); \
     fprintf(stdout, __VA_ARGS__)
@@ -42,42 +42,42 @@
 #define _Debug(code)
 #endif
 
-/**
- * @brief Structure to hold server info.
- */
-typedef struct ServerInfo {
+// 
+// Structure to hold general server info.
+// 
+typedef struct {
 	const uint8_t PROTOCOL;
-	int8_t socketMaster;
+	int8_t socket_master;
 	char ip[12];
         uint16_t port;
-	bool isConnected;
-}ServerInfo;
+	bool is_connected;
+} serverinfo_t;
 
-/**
- * @brief Structure to hold user info.
- */
-typedef struct UserInfo {
+// 
+// Structure to hold user info.
+// 
+typedef struct {
 	char username[MAX_USERNAME_SIZE];
-}UserInfo;
+} userinfo_t;
 
-///**
-// * @brief Structure to hold client info.
-// */
+//// 
+//// Structure to hold client info.
+//// 
 //typedef struct ClientInfo {
 //    int socket;
-//    UserInfo user;
+//    userinfo_t user;
 //    char ip[MAX_IP_SIZE];
 //    char date[METADATA_DATE_SIZE];
 //} ClientInfo;
 
-/**
- * @brief Structure to hold message info.
- */
-typedef struct Message {
+// 
+// Structure to hold message info.
+// 
+typedef struct message_t {
 	bool has_content;
         char date[METADATA_DATE_SIZE];
-        UserInfo user_data;
+        userinfo_t user_data;
         char message[MAX_MESSAGE_SIZE];
-}Message;
+}message_t;
 
 #endif // COMMON_H

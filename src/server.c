@@ -1,4 +1,4 @@
-/* This file should only deal with control flow in server-side */
+//  This file should only deal with control flow in server-side
 
 #include <arpa/inet.h>
 #include <asm-generic/errno-base.h>
@@ -12,7 +12,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,25 +28,25 @@ pthread_mutex_t clientsMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t socketSetMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Data structure to store server information
-ServerInfo serverData = {
+serverinfo_t serverData = {
     .PROTOCOL = AF_INET,
-    .socketMaster = 0,
+    .socket_master = 0,
     .ip = DEFAULT_IP,
     .port = DEFAULT_PORT,
-    .isConnected = false,
+    .is_connected = false,
 };
 
 fd_set socket_read_set;
 int clients[MAX_CLIENTS] = {0};
 struct sockaddr_in address, cli;
-const int CLI_LEN = sizeof(cli);
+const int CLI_LEN = sizeof(struct sockaddr_in);
 volatile int connected_clients = 0;
 
 // Handle new messages from clients
-void messageBroadcast(int *clients, int sender, Message *messageReceived)
+static void messageBroadcast(int *clients, int sender, message_t *messageReceived)
 {
     // Log message
-    LogInfo("[%s] %s'%s'%s: %s", \
+    LogInfo("[%s] %s\"%s\"%s \"%s\"\n", \
             messageReceived->date,
             BGRN, messageReceived->user_data.username, CRESET, \
             messageReceived->message);
@@ -56,23 +55,24 @@ void messageBroadcast(int *clients, int sender, Message *messageReceived)
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         if (clients[i] > 0 && clients[i] != sender) {
             int broadcast_status = 0;
-            if ((broadcast_status = send(clients[i], messageReceived, sizeof(*messageReceived), 0)) == -1) {
-                LogInfo("Error sending message => [%s] %s'%s'%s: %s", \
+            if ((broadcast_status = send(clients[i], messageReceived, sizeof(message_t), 0)) == -1) {
+                LogInfo("Error sending message => [%s] %s\"%s\"%s \"%s\" to client %i\n", \
                         messageReceived->date, \
                         BGRN, messageReceived->user_data.username, CRESET, \
-                        messageReceived->message);
+                        messageReceived->message, \
+                        i);
             }
         }
     }
 }
 
 // Close the connection with a client
-void connectionClose(int *client, int CLI_LEN, struct sockaddr_in *cli, struct sockaddr_in *address)
+static void connectionClose(int *client, int CLI_LEN, struct sockaddr_in *cli, struct sockaddr_in *address)
 {
     // Log disconnected client details
     getpeername(*client, (struct sockaddr*)&cli, (socklen_t*)&CLI_LEN);
     pthread_mutex_lock(&outputMutex);
-    LogInfo("Client disconnected!\n\t- IP: %s\n\t- Port: %d\n", inet_ntoa(address->sin_addr), ntohs(address->sin_port));
+    LogInfo("Client disconnected!\n\r\t- IP: %s\n\r\t- Port: %d\n", inet_ntoa(address->sin_addr), ntohs(address->sin_port));
     pthread_mutex_unlock(&outputMutex);
 
     // Close client socket
@@ -82,15 +82,14 @@ void connectionClose(int *client, int CLI_LEN, struct sockaddr_in *cli, struct s
 }
 
 // Handle new client connections
-void connectionNew(int new_client, struct sockaddr_in *clientAddress)
+static void connectionNew(int new_client, struct sockaddr_in *clientAddress)
 {
     ++connected_clients;
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         if (clients[i] == 0) {
             clients[i] = new_client;
-            //memcpy(clients[i], cli, sizeof(struct sockaddr_in));
             pthread_mutex_lock(&outputMutex);
-            LogInfo("New client connected!\n\t- IP: %s\n\t- Port: %d\n\t- SocketFd: %d\n", 
+            LogInfo("New client connected!\n\r\t- IP: %s\n\r\t- Port: %d\n\r\t- SocketFd: %d\n", 
                     inet_ntoa(clientAddress->sin_addr), ntohs(clientAddress->sin_port), new_client);
             pthread_mutex_unlock(&outputMutex);
             break;
@@ -99,7 +98,7 @@ void connectionNew(int new_client, struct sockaddr_in *clientAddress)
 }
 
 // Handles already connected client communication
-void handleCommunication(void)
+static void handleCommunication(void)
 {
     while(true) {
         // Freezes communication proccess until someone is connected,
@@ -107,7 +106,7 @@ void handleCommunication(void)
         if (!connected_clients) continue;
 
         // Search messages sent by all clients
-        Message messageReceived = {0};
+        message_t messageReceived = {0};
 
         for (int i = 0; i < MAX_CLIENTS; ++i) {
             // Next client if any message is found
@@ -116,17 +115,17 @@ void handleCommunication(void)
             }
 
             // Clear the messageReceived before reading new data
-            memset(&messageReceived, 0, sizeof(messageReceived));
+            memset(&messageReceived, 0, sizeof(message_t));
 
             int flags = fcntl(clients[i], F_GETFL, 0);
             fcntl(clients[i], F_SETFL, flags | O_NONBLOCK);
 
-            ssize_t valread = read(clients[i], &messageReceived, sizeof(messageReceived));
+            ssize_t valread = read(clients[i], &messageReceived, sizeof(message_t));
             if (valread == -1) {
+                // No data available at this moment
                 if (errno != EAGAIN && errno != EWOULDBLOCK) {
                     LogExit("Failed to read socket content\n");
                 }
-                // No data available at this moment
             } else if (valread == 0) {
                 // Handle client disconnection
                 connectionClose(&clients[i], CLI_LEN, &cli, &address);
@@ -142,10 +141,10 @@ void handleCommunication(void)
 }
 
 // Handle new users connection
-void handleConnection(void)
+static void handleConnection(void)
 {
     struct sockaddr_in clientAddress;
-    socklen_t clientAddressLength = sizeof(clientAddress);
+    socklen_t clientAddressLength = sizeof(struct sockaddr_in);
 
     pthread_mutex_lock(&outputMutex);
     LogInfo("Server initialized, waiting for clients to connect...\n");
@@ -154,10 +153,10 @@ void handleConnection(void)
     while(true) {
         int new_client;
         FD_ZERO(&socket_read_set); // Clear socket set
-        FD_SET(serverData.socketMaster, &socket_read_set); // Add master socket to set
+        FD_SET(serverData.socket_master, &socket_read_set); // Add master socket to set
 
         // Add child socket to set
-        int max_socket_descriptor = serverData.socketMaster;
+        int max_socket_descriptor = serverData.socket_master;
         for (int i = 0; i < MAX_CLIENTS; ++i) {
             // Add socket to read list if valid
             if (clients[i] > 0) {
@@ -170,7 +169,6 @@ void handleConnection(void)
             }
         }
 
-
         // Wait for activity in one of the sockets
         if (select(max_socket_descriptor + 1, &socket_read_set, NULL, NULL, NULL) < 0 && (errno != EINTR)) {
             pthread_mutex_lock(&outputMutex);
@@ -180,10 +178,10 @@ void handleConnection(void)
 
         // Check for new incomming connection in the master socket
         pthread_mutex_lock(&socketSetMutex);
-        if (FD_ISSET(serverData.socketMaster, &socket_read_set)) {
+        if (FD_ISSET(serverData.socket_master, &socket_read_set)) {
             pthread_mutex_lock(&clientsMutex);
 
-            if ((new_client = accept(serverData.socketMaster, (struct sockaddr*)&clientAddress,(socklen_t*)&clientAddressLength)) == -1) {
+            if ((new_client = accept(serverData.socket_master, (struct sockaddr*)&clientAddress,(socklen_t*)&clientAddressLength)) == -1) {
                 LogExit("Failed to connect client\n");
             }
             connectionNew(new_client, &clientAddress);
@@ -194,29 +192,30 @@ void handleConnection(void)
 }
 
 // Initialize the server and handle client connections
-void serverInitialize(void)
+static void serverInitialize(void)
 {
     // Creating socket descriptor 
     LogInfo("Building connection to socket\n");
-    if ((serverData.socketMaster = socket(serverData.PROTOCOL, SOCK_STREAM, 0)) == -1){
+    if ((serverData.socket_master = socket(serverData.PROTOCOL, SOCK_STREAM, 0)) == -1){
         LogExit("Socket creation failed\n");
     }
 
-    // Attach socket to given serverData.port 
-    memset(&address, 0, sizeof(address));
+    LogInfo("- Protocol: %i\n", serverData.PROTOCOL);
+    LogInfo("- Address: %s\n", serverData.ip);
+    LogInfo("- Port: %i\n", serverData.port);
+
+    // Attach socket to given 'serverData.port'
+    memset(&address, 0, sizeof(struct sockaddr_in));
     address.sin_family = serverData.PROTOCOL;
     address.sin_addr.s_addr = htonl(INADDR_ANY);
     address.sin_port = htons(serverData.port);
 
-    LogInfo("Server using protocol %i\n", serverData.PROTOCOL);
-    LogInfo("Server using port %i\n", serverData.port);
-
     LogInfo("Binding server to socket\n");
-    if (bind(serverData.socketMaster, (struct sockaddr*)&address, sizeof(address)) == -1){
+    if (bind(serverData.socket_master, (struct sockaddr*)&address, sizeof(struct sockaddr_in)) == -1){
         LogExit("Socket binding failed\n");
     }
 
-    if (listen(serverData.socketMaster, BACKLOG_SIZE) == -1){
+    if (listen(serverData.socket_master, BACKLOG_SIZE) == -1){
         LogExit("Socket listening failed\n");
     }
 
@@ -243,19 +242,13 @@ int main(int argc, char *argv[])
         exit(EXIT_SUCCESS);
     }
 
-    // Check username
-    regex_t regex;
-    if (regcomp(&regex, "^[a-zA-Z0-9]+$", REG_EXTENDED) != 0) {
-        LogExit("Regex compilation failed\n");
-    }
-    regfree(&regex);
-
     // Define IP
     const char *IP = argv[1];
     strncpy(serverData.ip, IP, sizeof(serverData.ip));
+
     // Check and define server PORT
     const char *PORT = argv[2];
-    unsigned int PORT_VAL = atoi(PORT);
+    const unsigned int PORT_VAL = atoi(PORT);
     if (PORT_VAL < 1 || PORT_VAL > 65535) {
         LogExit("Invalid port number. Port must be between 1 and 65535\n");
     }
@@ -265,7 +258,7 @@ int main(int argc, char *argv[])
     serverInitialize(); 
 
     /* Closing the connected socket */
-    close(serverData.socketMaster);
+    close(serverData.socket_master);
 
     return 0;
 }
