@@ -55,6 +55,7 @@ Upon successful connection, you'll see a prompt at the bottom of the terminal fo
 - [X] Implement [Termui](https://github.com/Anthhon/termui) TUI library
 - [X] Implement multi-threading for both client and server
 - [X] Make it work at WAN network
+- [ ] Replace `select` with `epoll`
 - [ ] Implement Winsock library so it work on Windows XD
 - [ ] Add unit tests
 
